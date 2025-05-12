@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Голосування</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1, h2 {
+            color: #333;
+        }
+
+        .voting-form {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+
+        .flash-message {
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        .admin-link {
+            display: block;
+            margin-top: 20px;
+            text-align: right;
+            color: #666;
+            text-decoration: none;
+            font-size: 0.9em;
+        }
+    </style>
+    <script>
+        function updateOptions() {
+            const choice1 = document.getElementById("choice1").value;
+            const choice2 = document.getElementById("choice2").value;
+            const choice3 = document.getElementById("choice3").value;
+
+            const selects = ["choice1", "choice2", "choice3"];
+            const selectedValues = [choice1, choice2, choice3];
+
+            selects.forEach((selectId, idx) => {
+                const select = document.getElementById(selectId);
+                const options = select.options;
+
+                for (let i = 0; i < options.length; i++) {
+                    options[i].disabled = false;
+                    const value = options[i].value;
+                    
+                    selectedValues.forEach((selectedValue, selectedIdx) => {
+                        if (idx !== selectedIdx && value === selectedValue) {
+                            options[i].disabled = true;
+                        }
+                    });
+                }
+            });
+        }
+    </script>
+</head>
+<body>
+    <h1>Система голосування</h1>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for message in messages %}
+                    <div class="flash-message">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="voting-form">
+        <h2>Голосування за виконавців</h2>
+        <form method="post">
+            <div class="form-group">
+                <label for="expert">Ваше ім'я:</label>
+                <select name="expert" id="expert" required>
+                    {% for expert in experts %}
+                        <option value="{{ expert }}">{{ expert }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="choice1">1 місце:</label>
+                <select name="choice1" id="choice1" required onchange="updateOptions()">
+                    {% for performer in performers %}
+                        <option value="{{ performer[0] }}">{{ performer[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="choice2">2 місце:</label>
+                <select name="choice2" id="choice2" required onchange="updateOptions()">
+                    {% for performer in performers %}
+                        <option value="{{ performer[0] }}">{{ performer[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="choice3">3 місце:</label>
+                <select name="choice3" id="choice3" required onchange="updateOptions()">
+                    {% for performer in performers %}
+                        <option value="{{ performer[0] }}">{{ performer[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <button type="submit">Проголосувати</button>
+        </form>
+    </div>
+
+    <a href="{{ url_for('login') }}" class="admin-link">Вхід для адміністратора</a>
+</body>
+</html>

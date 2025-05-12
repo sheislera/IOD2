@@ -169,10 +169,7 @@ def admin_dashboard():
 
         plot_json = create_heuristics_plot(cursor)
         
-        # Отримуємо результати фільтрації за евристиками
-        filtering_steps, final_list = apply_heuristics(cursor)
-        
-        # Додаємо рейтинг за евристиками тільки для фінального списку виконавців
+        # Додаємо рейтинг за евристиками
         cursor.execute("""
             WITH points AS (
                 SELECT 
@@ -187,7 +184,6 @@ def admin_dashboard():
                     COUNT(DISTINCT CASE WHEN v.choice1 = p.id OR v.choice2 = p.id OR v.choice3 = p.id THEN v.expert_id END) as total_voters
                 FROM performers p
                 LEFT JOIN votes v ON p.id IN (v.choice1, v.choice2, v.choice3)
-                WHERE p.name IN ({})
                 GROUP BY p.id, p.name
             )
             SELECT 
@@ -204,8 +200,7 @@ def admin_dashboard():
                 first_place_votes DESC,
                 second_place_votes DESC,
                 third_place_votes DESC
-        """.format(','.join(['?'] * len(final_list))), final_list)
-        
+        """)
         heuristic_ranking = cursor.fetchall()
         
         # Додаємо запит для отримання голосів експертів за евристики
@@ -231,9 +226,7 @@ def admin_dashboard():
                              heuristics_ranking=heuristics_ranking,
                              heuristic_ranking=heuristic_ranking,
                              expert_heuristic_votes=expert_heuristic_votes,
-                             plot_json=plot_json,
-                             filtering_steps=filtering_steps,
-                             final_list=final_list)
+                             plot_json=plot_json)
 
 @app.route('/', methods=['GET', 'POST'])
 def vote():
@@ -421,122 +414,118 @@ def apply_heuristics(cursor):
     """Застосовує вибрані евристики та повертає результати фільтрації"""
     results = []
     
-    # Отримуємо всіх виконавців з їх рейтингом
-    cursor.execute("""
-        WITH points AS (
-            SELECT 
-                p.id,
-                p.name,
-                COUNT(CASE WHEN v.choice1 = p.id THEN 1 END) * 3 +
-                COUNT(CASE WHEN v.choice2 = p.id THEN 1 END) * 2 +
-                COUNT(CASE WHEN v.choice3 = p.id THEN 1 END) * 1 as total_points,
-                COUNT(DISTINCT CASE WHEN v.choice1 = p.id THEN v.expert_id END) as first_place_votes,
-                COUNT(DISTINCT CASE WHEN v.choice2 = p.id THEN v.expert_id END) as second_place_votes,
-                COUNT(DISTINCT CASE WHEN v.choice3 = p.id THEN v.expert_id END) as third_place_votes
-            FROM performers p
-            LEFT JOIN votes v ON p.id IN (v.choice1, v.choice2, v.choice3)
-            GROUP BY p.id, p.name
-        )
-        SELECT id, name, total_points
-        FROM points
-        ORDER BY total_points DESC
-    """)
-    all_performers = cursor.fetchall()
-    current_set = {row[0]: row[1] for row in all_performers}
+    # Отримуємо всіх виконавців
+    cursor.execute("SELECT id, name FROM performers")
+    all_performers = {row[0]: row[1] for row in cursor.fetchall()}
     
-    # Отримуємо евристики, відсортовані за популярністю
+    # Початковий набір ID виконавців
+    current_set = set(all_performers.keys())
+    
+    # Отримуємо останнього експерта, який голосував за евристики
     cursor.execute("""
-        SELECT h.id, h.name, h.description, 
-               COUNT(DISTINCT hv.expert_id) as vote_count,
-               AVG(hv.priority) as avg_priority
+        SELECT expert_id
+        FROM heuristic_votes
+        ORDER BY id DESC
+        LIMIT 1
+    """)
+    last_expert = cursor.fetchone()
+    
+    if not last_expert:
+        return [], list(all_performers.values())
+        
+    expert_id = last_expert[0]
+    
+    # Отримуємо вибрані евристики поточного експерта, відсортовані за пріоритетом
+    cursor.execute("""
+        SELECT DISTINCT h.id, h.name, h.description, hv.priority
         FROM heuristics h
-        LEFT JOIN heuristic_votes hv ON h.id = hv.heuristic_id
-        GROUP BY h.id, h.name, h.description
-        ORDER BY vote_count DESC, avg_priority ASC
-    """)
-    sorted_heuristics = cursor.fetchall()
+        JOIN heuristic_votes hv ON h.id = hv.heuristic_id
+        WHERE hv.expert_id = ?
+        ORDER BY hv.priority ASC
+    """, (expert_id,))
+    selected_heuristics = cursor.fetchall()
     
-    # Застосовуємо евристики по черзі, поки не отримаємо <=10 об'єктів
-    for h_id, h_name, h_desc, votes, priority in sorted_heuristics:
-        if len(current_set) <= 10:
-            break
-            
+    if not selected_heuristics:
+        return [], list(all_performers.values())  # Якщо евристики не вибрані, повертаємо всіх виконавців
+    
+    for h_id, h_name, h_desc, priority in selected_heuristics:
         excluded = set()
         
         if h_name == "E1":
             cursor.execute("""
-                SELECT p.id
+                SELECT p.id, p.name
                 FROM performers p
                 JOIN votes v ON p.id = v.choice3
-                GROUP BY p.id
+                GROUP BY p.id, p.name
                 HAVING COUNT(*) = 1
             """)
+            excluded = {row[0] for row in cursor.fetchall()}
         elif h_name == "E2":
             cursor.execute("""
-                SELECT p.id
+                SELECT p.id, p.name
                 FROM performers p
                 JOIN votes v ON p.id = v.choice2
-                GROUP BY p.id
+                GROUP BY p.id, p.name
                 HAVING COUNT(*) = 1
             """)
+            excluded = {row[0] for row in cursor.fetchall()}
         elif h_name == "E3":
             cursor.execute("""
-                SELECT p.id
+                SELECT p.id, p.name
                 FROM performers p
                 JOIN votes v ON p.id = v.choice1
-                GROUP BY p.id
+                GROUP BY p.id, p.name
                 HAVING COUNT(*) = 1
             """)
+            excluded = {row[0] for row in cursor.fetchall()}
         elif h_name == "E4":
             cursor.execute("""
-                SELECT p.id
+                SELECT p.id, p.name
                 FROM performers p
                 JOIN votes v ON p.id = v.choice3
-                GROUP BY p.id
+                GROUP BY p.id, p.name
                 HAVING COUNT(*) = 2
             """)
+            excluded = {row[0] for row in cursor.fetchall()}
         elif h_name == "E5":
             cursor.execute("""
-                SELECT p.id
+                SELECT p.id, p.name
                 FROM performers p
                 JOIN votes v1 ON p.id = v1.choice3
                 JOIN votes v2 ON p.id = v2.choice2
-                GROUP BY p.id
+                GROUP BY p.id, p.name
                 HAVING COUNT(DISTINCT CASE WHEN p.id = v1.choice3 THEN v1.id END) = 1
                 AND COUNT(DISTINCT CASE WHEN p.id = v2.choice2 THEN v2.id END) = 1
             """)
+            excluded = {row[0] for row in cursor.fetchall()}
         elif h_name == "E6":
             cursor.execute("""
-                SELECT p.id
+                SELECT p.id, p.name
                 FROM performers p
                 LEFT JOIN votes v ON p.id IN (v.choice1, v.choice2, v.choice3)
                 LEFT JOIN votes v1 ON p.id = v1.choice1
-                GROUP BY p.id
+                GROUP BY p.id, p.name
                 HAVING COUNT(DISTINCT v.id) >= 3 AND COUNT(v1.id) = 0
             """)
+            excluded = {row[0] for row in cursor.fetchall()}
         elif h_name == "E7":
             cursor.execute("""
-                SELECT p.id
+                SELECT p.id, p.name,
+                    COUNT(CASE WHEN v.choice1 = p.id THEN 1 END) * 3 +
+                    COUNT(CASE WHEN v.choice2 = p.id THEN 1 END) * 2 +
+                    COUNT(CASE WHEN v.choice3 = p.id THEN 1 END) * 1 as total_points
                 FROM performers p
                 LEFT JOIN votes v ON p.id IN (v.choice1, v.choice2, v.choice3)
-                GROUP BY p.id
-                HAVING COUNT(CASE WHEN v.choice1 = p.id THEN 1 END) * 3 +
-                       COUNT(CASE WHEN v.choice2 = p.id THEN 1 END) * 2 +
-                       COUNT(CASE WHEN v.choice3 = p.id THEN 1 END) * 1 < 2
+                GROUP BY p.id, p.name
+                HAVING total_points < 2
             """)
-            
-        excluded = {row[0] for row in cursor.fetchall()}
-        excluded = excluded & set(current_set.keys())
+            excluded = {row[0] for row in cursor.fetchall()}
         
-        if excluded:
-            results.append((
-                f"{h_name}: {h_desc}",
-                [current_set[pid] for pid in excluded]
-            ))
-            for pid in excluded:
-                del current_set[pid]
+        excluded = excluded & current_set  # Виключаємо тільки з поточного набору
+        results.append((f"{h_name}: {h_desc}", [all_performers[pid] for pid in excluded]))
+        current_set = current_set - excluded
     
-    return results, list(current_set.values())
+    return results, [all_performers[pid] for pid in current_set]
 
 def create_heuristics_plot(cursor):
     """Створює графік популярності евристик"""
@@ -779,38 +768,6 @@ def migrate_db():
             
             conn.commit()
 
-def generate_missing_heuristic_votes():
-    """Генерує голоси за евристики для експертів, які ще не голосували"""
-    with sqlite3.connect("voting.db") as conn:
-        cursor = conn.cursor()
-        
-        # Отримуємо експертів, які ще не голосували за евристики
-        cursor.execute("""
-            SELECT e.id 
-            FROM experts e
-            LEFT JOIN heuristic_votes hv ON e.id = hv.expert_id
-            WHERE hv.id IS NULL
-        """)
-        experts_without_votes = cursor.fetchall()
-        
-        if experts_without_votes:
-            cursor.execute("SELECT id FROM heuristics")
-            heuristics = [row[0] for row in cursor.fetchall()]
-            
-            for (expert_id,) in experts_without_votes:
-                # Випадково вибираємо від 1 до 3 евристик
-                num_heuristics = random.randint(1, 3)
-                selected_heuristics = random.sample(heuristics, num_heuristics)
-                
-                # Додаємо голоси з пріоритетами
-                for priority, heuristic_id in enumerate(selected_heuristics, 1):
-                    cursor.execute("""
-                        INSERT INTO heuristic_votes (expert_id, heuristic_id, priority)
-                        VALUES (?, ?, ?)
-                    """, (expert_id, heuristic_id, priority))
-            
-            conn.commit()
-
 if __name__ == '__main__':
     # Перевіряємо, чи існує база даних
     db_exists = os.path.exists("voting.db")
@@ -821,9 +778,8 @@ if __name__ == '__main__':
         seed_heuristics()
         generate_random_votes()
     else:
-        # Якщо база існує, виконуємо міграцію та додаємо відсутні голоси за евристики
+        # Якщо база існує, виконуємо міграцію
         migrate_db()
         clean_duplicates()
-        generate_missing_heuristic_votes()
     
     app.run(debug=True)

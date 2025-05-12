@@ -169,10 +169,7 @@ def admin_dashboard():
 
         plot_json = create_heuristics_plot(cursor)
         
-        # Отримуємо результати фільтрації за евристиками
-        filtering_steps, final_list = apply_heuristics(cursor)
-        
-        # Додаємо рейтинг за евристиками тільки для фінального списку виконавців
+        # Додаємо рейтинг за евристиками
         cursor.execute("""
             WITH points AS (
                 SELECT 
@@ -187,7 +184,6 @@ def admin_dashboard():
                     COUNT(DISTINCT CASE WHEN v.choice1 = p.id OR v.choice2 = p.id OR v.choice3 = p.id THEN v.expert_id END) as total_voters
                 FROM performers p
                 LEFT JOIN votes v ON p.id IN (v.choice1, v.choice2, v.choice3)
-                WHERE p.name IN ({})
                 GROUP BY p.id, p.name
             )
             SELECT 
@@ -204,8 +200,7 @@ def admin_dashboard():
                 first_place_votes DESC,
                 second_place_votes DESC,
                 third_place_votes DESC
-        """.format(','.join(['?'] * len(final_list))), final_list)
-        
+        """)
         heuristic_ranking = cursor.fetchall()
         
         # Додаємо запит для отримання голосів експертів за евристики
@@ -231,9 +226,7 @@ def admin_dashboard():
                              heuristics_ranking=heuristics_ranking,
                              heuristic_ranking=heuristic_ranking,
                              expert_heuristic_votes=expert_heuristic_votes,
-                             plot_json=plot_json,
-                             filtering_steps=filtering_steps,
-                             final_list=final_list)
+                             plot_json=plot_json)
 
 @app.route('/', methods=['GET', 'POST'])
 def vote():

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель адміністратора</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .logout-btn {
+            padding: 10px 20px;
+            background-color: #f44336;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+
+        h1, h2 {
+            color: #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #f5f5f5;
+        }
+
+        .section {
+            background-color: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .plot-container {
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-header">
+        <h1>Панель адміністратора</h1>
+        <a href="{{ url_for('logout') }}" class="logout-btn">Вийти</a>
+    </div>
+
+    <div class="section">
+        <h2>Результати голосування експертів</h2>
+        <table>
+            <tr>
+                <th>Експерт</th>
+                <th>1 місце</th>
+                <th>2 місце</th>
+                <th>3 місце</th>
+            </tr>
+            {% for vote in votes %}
+            <tr>
+                <td>{{ vote[0] }}</td>
+                <td>{{ vote[1] }}</td>
+                <td>{{ vote[2] }}</td>
+                <td>{{ vote[3] }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Загальний рейтинг виконавців</h2>
+        <table>
+            <tr>
+                <th>Виконавець</th>
+                <th>1 місце</th>
+                <th>2 місце</th>
+                <th>3 місце</th>
+            </tr>
+            {% for result in total_results %}
+            <tr>
+                <td>{{ result[0] }}</td>
+                <td>{{ result[1] }}</td>
+                <td>{{ result[2] }}</td>
+                <td>{{ result[3] }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Рейтинг евристик</h2>
+        <table>
+            <tr>
+                <th>Евристика</th>
+                <th>Опис</th>
+                <th>Кількість голосів</th>
+                <th>Пріоритет (середній)</th>
+            </tr>
+            {% for heuristic in heuristics_ranking %}
+            <tr>
+                <td>{{ heuristic.name }}</td>
+                <td>{{ heuristic.description }}</td>
+                <td>{{ heuristic.votes }}</td>
+                <td>{{ "%.2f"|format(heuristic.avg_priority) }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Графік популярності евристик</h2>
+        <div id="heuristics-plot"></div>
+    </div>
+
+    <div class="container mt-4">
+        <h2>Рейтинг виконавців за евристиками</h2>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Виконавець</th>
+                    <th>Загальні бали</th>
+                    <th>Голосів за 1 місце</th>
+                    <th>Голосів за 2 місце</th>
+                    <th>Голосів за 3 місце</th>
+                    <th>Всього голосів</th>
+                    <th>Середній бал</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for performer in heuristic_ranking %}
+                <tr>
+                    <td>{{ performer[0] }}</td>
+                    <td>{{ performer[1] }}</td>
+                    <td>{{ performer[2] }}</td>
+                    <td>{{ performer[3] }}</td>
+                    <td>{{ performer[4] }}</td>
+                    <td>{{ performer[5] }}</td>
+                    <td>{{ performer[6] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Голоси експертів за евристики</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Експерт</th>
+                    <th>Вибрані евристики та їх пріоритети</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vote in expert_heuristic_votes %}
+                <tr>
+                    <td>{{ vote[0] }}</td>
+                    <td>
+                        {% if vote[1] %}
+                            {{ vote[1].replace(',', '<br>') | safe }}
+                        {% else %}
+                            Не голосував за евристики
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        var graphs = {{ plot_json | safe }};
+        Plotly.newPlot('heuristics-plot', graphs.data, graphs.layout);
+    </script>
+</body>
+</html> 

@@ -12,7 +12,7 @@
             padding: 20px;
         }
 
-        h1, h2, h3 {
+        h1, h2 {
             color: #333;
         }
 
@@ -52,37 +52,6 @@
         .home-link:hover {
             color: #333;
         }
-
-        .filtering-process {
-            margin: 20px 0;
-            padding: 15px;
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .filtering-step {
-            margin: 10px 0;
-            padding: 10px;
-            background-color: #f9f9f9;
-            border-left: 3px solid #4CAF50;
-        }
-
-        .final-list {
-            margin: 20px 0;
-            padding: 15px;
-            background-color: #e8f5e9;
-            border-radius: 8px;
-        }
-
-        .final-list ul {
-            list-style-type: none;
-            padding: 0;
-        }
-
-        .final-list li {
-            padding: 5px 0;
-        }
     </style>
 </head>
 <body>
@@ -94,7 +63,7 @@
 
         {% if session.get('expert_name') %}
         <div class="choices">
-            <h3>Ваш вибір виконавців:</h3>
+            <h3>Ваш вибір:</h3>
             {% for vote in personal_votes %}
             <div class="choice">
                 <strong>{{ loop.index }} місце:</strong> {{ vote }}
@@ -102,32 +71,6 @@
             {% endfor %}
         </div>
         {% endif %}
-    </div>
-
-    <div class="filtering-process">
-        <h2>Процес фільтрації об'єктів</h2>
-        <p>На основі голосування експертів за евристики, об'єкти фільтруються наступним чином:</p>
-        
-        {% for step in filtering_steps %}
-        <div class="filtering-step">
-            <h3>{{ step[0] }}</h3>
-            <p>Видалені об'єкти:</p>
-            <ul>
-                {% for obj in step[1] %}
-                <li>{{ obj }}</li>
-                {% endfor %}
-            </ul>
-        </div>
-        {% endfor %}
-    </div>
-
-    <div class="final-list">
-        <h2>Фінальний список об'єктів (≤10)</h2>
-        <ul>
-            {% for obj in final_list %}
-            <li>{{ obj }}</li>
-            {% endfor %}
-        </ul>
     </div>
 
     <a href="{{ url_for('vote') }}" class="home-link">← Повернутися на головну</a>

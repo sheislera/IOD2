@@ -98,14 +98,6 @@
             margin-bottom: 20px;
             color: #666;
         }
-
-        .voted-message {
-            background-color: #e8f5e9;
-            padding: 20px;
-            border-radius: 8px;
-            text-align: center;
-            margin: 20px 0;
-        }
     </style>
     <script>
         function updateOptions() {
@@ -125,7 +117,7 @@
                     const value = options[i].value;
                     
                     selectedValues.forEach((selectedValue, selectedIdx) => {
-                        if (idx !== selectedIdx && value === selectedValue && value !== "") {
+                        if (idx !== selectedIdx && value === selectedValue) {
                             options[i].disabled = true;
                         }
                     });
@@ -152,58 +144,50 @@
             Ви увійшли як: {{ session.get('expert_name') }}
             <a href="{{ url_for('expert_logout') }}" style="margin-left: 10px; color: #f44336;">Вийти</a>
         </div>
-
-        {% if has_voted %}
-            <div class="voted-message">
-                <h2>Ви вже проголосували</h2>
-                <p>Дякуємо за участь у голосуванні!</p>
-            </div>
-        {% else %}
-            <div class="voting-form">
-                <h2>Голосування за виконавців</h2>
-                <form method="post">
-                    <input type="hidden" name="expert" value="{{ session.get('expert_name') }}">
-                    
-                    <div class="form-group">
-                        <label for="choice1">1 місце:</label>
-                        <select name="choice1" id="choice1" required onchange="updateOptions()">
-                            <option value="">Оберіть виконавця</option>
-                            {% for performer in performers %}
-                                <option value="{{ performer[0] }}">{{ performer[1] }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="choice2">2 місце:</label>
-                        <select name="choice2" id="choice2" required onchange="updateOptions()">
-                            <option value="">Оберіть виконавця</option>
-                            {% for performer in performers %}
-                                <option value="{{ performer[0] }}">{{ performer[1] }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="choice3">3 місце:</label>
-                        <select name="choice3" id="choice3" required onchange="updateOptions()">
-                            <option value="">Оберіть виконавця</option>
-                            {% for performer in performers %}
-                                <option value="{{ performer[0] }}">{{ performer[1] }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <button type="submit">Проголосувати</button>
-                </form>
-            </div>
-        {% endif %}
     {% else %}
         <div class="auth-links">
             <p>Для голосування необхідно увійти або зареєструватися</p>
             <a href="{{ url_for('expert_login') }}">Увійти</a> |
             <a href="{{ url_for('register') }}">Зареєструватися</a>
         </div>
+    {% endif %}
+
+    {% if session.get('expert_id') %}
+    <div class="voting-form">
+        <h2>Голосування за виконавців</h2>
+        <form method="post">
+            <input type="hidden" name="expert" value="{{ session.get('expert_name') }}">
+            
+            <div class="form-group">
+                <label for="choice1">1 місце:</label>
+                <select name="choice1" id="choice1" required onchange="updateOptions()">
+                    {% for performer in performers %}
+                        <option value="{{ performer[0] }}">{{ performer[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="choice2">2 місце:</label>
+                <select name="choice2" id="choice2" required onchange="updateOptions()">
+                    {% for performer in performers %}
+                        <option value="{{ performer[0] }}">{{ performer[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="choice3">3 місце:</label>
+                <select name="choice3" id="choice3" required onchange="updateOptions()">
+                    {% for performer in performers %}
+                        <option value="{{ performer[0] }}">{{ performer[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <button type="submit">Проголосувати</button>
+        </form>
+    </div>
     {% endif %}
 
     <a href="{{ url_for('login') }}" class="admin-link">Вхід для адміністратора</a>
