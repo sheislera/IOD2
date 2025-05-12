@@ -215,7 +215,6 @@ def admin_dashboard():
                 GROUP_CONCAT(
                     h.name || ' (' || h.description || ')' || 
                     ' - Пріоритет: ' || hv.priority
-                    ORDER BY hv.priority
                 ) as heuristic_votes
             FROM experts e
             LEFT JOIN heuristic_votes hv ON e.id = hv.expert_id
