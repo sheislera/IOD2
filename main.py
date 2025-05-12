@@ -209,20 +209,22 @@ def admin_dashboard():
         heuristic_ranking = cursor.fetchall()
         
         # Додаємо запит для отримання голосів експертів за евристики
+        # Додаємо запит для отримання голосів експертів за евристики
         cursor.execute("""
-            SELECT 
-                e.name as expert_name,
-                GROUP_CONCAT(
-                    h.name || ' (' || h.description || ')' || 
-                    ' - Пріоритет: ' || hv.priority
-                ) as heuristic_votes
-            FROM experts e
-            LEFT JOIN heuristic_votes hv ON e.id = hv.expert_id
-            LEFT JOIN heuristics h ON hv.heuristic_id = h.id
-            GROUP BY e.id, e.name
-            ORDER BY e.name
-        """)
+    SELECT e.name as expert_name,
+           GROUP_CONCAT(
+               h.name || ' (' || h.description || ')' || 
+               ' - Пріоритет: ' || hv.priority,
+               ' | '
+           ) as heuristic_votes
+    FROM experts e
+    LEFT JOIN heuristic_votes hv ON e.id = hv.expert_id
+    LEFT JOIN heuristics h ON hv.heuristic_id = h.id
+    GROUP BY e.id, e.name
+    ORDER BY e.name
+""")
         expert_heuristic_votes = cursor.fetchall()
+
         
         return render_template('admin_dashboard.html',
                              votes=votes,
