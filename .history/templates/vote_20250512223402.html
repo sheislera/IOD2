@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Голосування</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1, h2 {
+            color: #333;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #f5f5f5;
+        }
+
+        form {
+            display: grid;
+            gap: 15px;
+            max-width: 600px;
+            margin: 20px 0;
+        }
+
+        label {
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 100%;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .voting-form {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .total-results {
+            margin-top: 30px;
+        }
+
+        .delete-btn {
+            color: red;
+            text-decoration: none;
+            margin-left: 10px;
+        }
+
+        .add-expert-form {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+        }
+
+        .add-expert-form input[type="text"] {
+            padding: 5px;
+            margin-right: 10px;
+        }
+
+        .add-expert-form button {
+            padding: 5px 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .voting-block {
+            background-color: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .or-divider {
+            text-align: center;
+            margin: 15px 0;
+            color: #666;
+        }
+    </style>
+    <script>
+        function showExistingExpertForm() {
+            document.getElementById('expert-type-buttons').style.display = 'none';
+            document.getElementById('existing-expert-form').style.display = 'block';
+            document.getElementById('new-expert-form').style.display = 'none';
+            updateOptions();
+        }
+
+        function showNewExpertForm() {
+            document.getElementById('expert-type-buttons').style.display = 'none';
+            document.getElementById('existing-expert-form').style.display = 'none';
+            document.getElementById('new-expert-form').style.display = 'block';
+            updateNewOptions();
+        }
+
+        function hideExpertForms() {
+            document.getElementById('expert-type-buttons').style.display = 'flex';
+            document.getElementById('existing-expert-form').style.display = 'none';
+            document.getElementById('new-expert-form').style.display = 'none';
+        }
+
+        function updateOptions() {
+            const choice1 = document.getElementById("choice1").value;
+            const choice2 = document.getElementById("choice2").value;
+            const choice3 = document.getElementById("choice3").value;
+
+            const selects = ["choice1", "choice2", "choice3"];
+            const selectedValues = [choice1, choice2, choice3];
+
+            selects.forEach((selectId, idx) => {
+                const select = document.getElementById(selectId);
+                const options = select.options;
+
+                for (let i = 0; i < options.length; i++) {
+                    options[i].disabled = false;
+                    const value = options[i].value;
+                    
+                    selectedValues.forEach((selectedValue, selectedIdx) => {
+                        if (idx !== selectedIdx && value === selectedValue) {
+                            options[i].disabled = true;
+                        }
+                    });
+                }
+            });
+        }
+
+        function updateNewOptions() {
+            const choice1 = document.getElementById("new_choice1").value;
+            const choice2 = document.getElementById("new_choice2").value;
+            const choice3 = document.getElementById("new_choice3").value;
+
+            const selects = ["new_choice1", "new_choice2", "new_choice3"];
+            const selectedValues = [choice1, choice2, choice3];
+
+            selects.forEach((selectId, idx) => {
+                const select = document.getElementById(selectId);
+                const options = select.options;
+
+                for (let i = 0; i < options.length; i++) {
+                    options[i].disabled = false;
+                    const value = options[i].value;
+                    
+                    selectedValues.forEach((selectedValue, selectedIdx) => {
+                        if (idx !== selectedIdx && value === selectedValue) {
+                            options[i].disabled = true;
+                        }
+                    });
+                }
+            });
+        }
+
+        // Initialize on page load
+        window.onload = hideExpertForms;
+    </script>
+</head>
+<body>
+    <h1>Система голосування</h1>
+
+    <div class="voting-block">
+        <h2>Голосування</h2>
+        
+        <!-- Кнопки вибору типу експерта -->
+        <div id="expert-type-buttons" style="display: flex; gap: 20px; margin-bottom: 20px;">
+            <button onclick="showExistingExpertForm()" style="flex: 1;">Я - існуючий експерт</button>
+            <button onclick="showNewExpertForm()" style="flex: 1;">Я - новий експерт</button>
+        </div>
+
+        <!-- Форма для існуючого експерта -->
+        <form method="post" id="existing-expert-form" style="display: none;">
+            <div class="form-group">
+                <label for="expert">Виберіть своє ім'я:</label>
+                <select name="expert" id="expert" required>
+                    {% for expert in experts %}
+                        <option value="{{ expert }}">{{ expert }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="choice1">1 місце:</label>
+                <select name="choice1" id="choice1" required onchange="updateOptions()">
+                    {% for performer in performers %}
+                        <option value="{{ performer[0] }}">{{ performer[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="choice2">2 місце:</label>
+                <select name="choice2" id="choice2" required onchange="updateOptions()">
+                    {% for performer in performers %}
+                        <option value="{{ performer[0] }}">{{ performer[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="choice3">3 місце:</label>
+                <select name="choice3" id="choice3" required onchange="updateOptions()">
+                    {% for performer in performers %}
+                        <option value="{{ performer[0] }}">{{ performer[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <button type="submit">Проголосувати</button>
+            <button type="button" onclick="hideExpertForms()" style="background-color: #666;">Назад</button>
+        </form>
+
+        <!-- Форма для нового експерта -->
+        <form method="post" action="{{ url_for('add_expert') }}" id="new-expert-form" style="display: none;">
+            <div class="form-group">
+                <label for="new_expert">Введіть своє ім'я:</label>
+                <input type="text" name="new_expert" id="new_expert" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="new_choice1">1 місце:</label>
+                <select name="choice1" id="new_choice1" required onchange="updateNewOptions()">
+                    {% for performer in performers %}
+                        <option value="{{ performer[0] }}">{{ performer[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="new_choice2">2 місце:</label>
+                <select name="choice2" id="new_choice2" required onchange="updateNewOptions()">
+                    {% for performer in performers %}
+                        <option value="{{ performer[0] }}">{{ performer[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="new_choice3">3 місце:</label>
+                <select name="choice3" id="new_choice3" required onchange="updateNewOptions()">
+                    {% for performer in performers %}
+                        <option value="{{ performer[0] }}">{{ performer[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <button type="submit">Проголосувати</button>
+            <button type="button" onclick="hideExpertForms()" style="background-color: #666;">Назад</button>
+        </form>
+    </div>
+
+    <div class="voting-block">
+        <h2>Голосування за евристики</h2>
+        <p>Після того як ви проголосували за виконавців, ви можете вибрати евристики для фільтрації результатів.</p>
+        <a href="{{ url_for('vote_heuristics') }}" class="button" style="display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px; margin-top: 10px;">
+            Перейти до голосування за евристики
+        </a>
+    </div>
+
+    <h2>Результати голосування експертів</h2>
+    <table>
+        <tr>
+            <th>Експерт</th>
+            <th>1 місце</th>
+            <th>2 місце</th>
+            <th>3 місце</th>
+        </tr>
+        {% for vote in votes %}
+        <tr>
+            <td>{{ vote[0] }}</td>
+            <td>{{ vote[1] }}</td>
+            <td>{{ vote[2] }}</td>
+            <td>{{ vote[3] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h2>Загальний рейтинг виконавців</h2>
+    <table>
+        <tr>
+            <th>Виконавець</th>
+            <th>1 місце</th>
+            <th>2 місце</th>
+            <th>3 місце</th>
+        </tr>
+        {% for result in total_results %}
+        <tr>
+            <td>{{ result[0] }}</td>
+            <td>{{ result[1] }}</td>
+            <td>{{ result[2] }}</td>
+            <td>{{ result[3] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h2>Рейтинг евристик</h2>
+    <table>
+        <tr>
+            <th>Евристика</th>
+            <th>Опис</th>
+            <th>Кількість голосів</th>
+            <th>Пріоритет (середній)</th>
+        </tr>
+        {% for heuristic in heuristics_ranking %}
+        <tr>
+            <td>{{ heuristic.name }}</td>
+            <td>{{ heuristic.description }}</td>
+            <td>{{ heuristic.votes }}</td>
+            <td>{{ "%.2f"|format(heuristic.avg_priority) }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <div class="plot-container">
+        <h2>Графік популярності евристик</h2>
+        <div id="heuristics-plot"></div>
+    </div>
+
+    <script>
+        var graphs = {{ plot_json | safe }};
+        Plotly.newPlot('heuristics-plot', graphs.data, graphs.layout);
+    </script>
+</body>
+</html>

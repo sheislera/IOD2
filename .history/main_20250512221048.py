@@ -1,0 +1,540 @@
+from flask import Flask, render_template, request, redirect, url_for
+import sqlite3
+import random
+import os
+import json
+import plotly
+import plotly.graph_objs as go
+
+app = Flask(__name__)
+
+
+# Ініціалізація бази даних
+def init_db():
+    with sqlite3.connect("voting.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS performers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS experts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS votes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                expert_id INTEGER UNIQUE, 
+                choice1 INTEGER,
+                choice2 INTEGER,
+                choice3 INTEGER,
+                FOREIGN KEY(expert_id) REFERENCES experts(id),
+                FOREIGN KEY(choice1) REFERENCES performers(id),
+                FOREIGN KEY(choice2) REFERENCES performers(id),
+                FOREIGN KEY(choice3) REFERENCES performers(id)
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS heuristics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL,
+                description TEXT NOT NULL
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS heuristic_votes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                expert_id INTEGER,
+                heuristic_id INTEGER,
+                priority INTEGER CHECK(priority IN (1, 2, 3)),
+                FOREIGN KEY(expert_id) REFERENCES experts(id),
+                FOREIGN KEY(heuristic_id) REFERENCES heuristics(id),
+                UNIQUE(expert_id, priority)
+            )
+        """)
+        conn.commit()
+
+
+# Додаємо список виконавців та експертів
+def seed_data():
+    performers = [
+        "dity inzheneriv", "SadSvit", "badactress", "jockii druce", "Do Sliz", "Boombox", "Nikow", "МУР",
+        "The Curly", "I Hate Myself Because", "NAZVA", "Ziferblat", "typeled", "Твій зайчик пише", "Luna Rozza",
+        "Tartak", "Скажи щось погане", "СТРУКТУРА ЩАСТЯ", "Epolets", "The Unsleeping"
+    ]
+
+    experts = [
+        "Артем", "Назар", "Настя", "Юля", "Коля", "Віра", "Надія", "Любов", "Олексій", "Олег",
+        "Марія", "Лера", "Олена", "Іван", "Олександр", "Валя", "Даня", "Марина", "Злата", "Костя"
+    ]
+
+    with sqlite3.connect("voting.db") as conn:
+        cursor = conn.cursor()
+        for performer in performers:
+            cursor.execute("INSERT OR IGNORE INTO performers (name) VALUES (?)", (performer,))
+        for expert in experts:
+            cursor.execute("INSERT OR IGNORE INTO experts (name) VALUES (?)", (expert,))
+        conn.commit()
+
+
+# Генеруємо рандомні голоси для експертів
+def generate_random_votes():
+    with sqlite3.connect("voting.db") as conn:
+        cursor = conn.cursor()
+
+        # Перевіряємо, чи є вже голоси в базі даних
+        cursor.execute("SELECT COUNT(*) FROM votes")
+        existing_votes = cursor.fetchone()[0]
+
+        if existing_votes == 0:  # Якщо голосів немає, генеруємо нові
+            cursor.execute("SELECT id FROM performers")
+            performers = [row[0] for row in cursor.fetchall()]
+
+            cursor.execute("SELECT id FROM experts")
+            experts = [row[0] for row in cursor.fetchall()]
+
+            for expert in experts:
+                # Рандомно вибираємо 3 виконавців для голосування
+                random_choices = random.sample(performers, 3)
+                cursor.execute("INSERT INTO votes (expert_id, choice1, choice2, choice3) VALUES (?, ?, ?, ?)",
+                             (expert, *random_choices))
+            conn.commit()
+
+
+def clean_duplicates():
+    with sqlite3.connect("voting.db") as conn:
+        cursor = conn.cursor()
+        
+        # Спочатку видалимо дублікати голосів
+        cursor.execute("""
+            DELETE FROM votes 
+            WHERE id NOT IN (
+                SELECT MIN(v.id)
+                FROM votes v
+                JOIN experts e ON v.expert_id = e.id
+                GROUP BY e.name
+            )
+        """)
+        
+        # Потім видалимо дублікати експертів, залишивши записи з найменшими id
+        cursor.execute("""
+            DELETE FROM experts 
+            WHERE id NOT IN (
+                SELECT MIN(id)
+                FROM experts
+                GROUP BY name
+            )
+        """)
+        
+        # Видалимо голоси експертів, яких вже немає
+        cursor.execute("""
+            DELETE FROM votes 
+            WHERE expert_id NOT IN (
+                SELECT id FROM experts
+            )
+        """)
+        
+        conn.commit()
+
+
+def apply_heuristics(cursor):
+    """Застосовує вибрані евристики та повертає результати фільтрації"""
+    results = []
+    
+    # Отримуємо всіх виконавців
+    cursor.execute("SELECT id, name FROM performers")
+    all_performers = {row[0]: row[1] for row in cursor.fetchall()}
+    
+    # Початковий набір ID виконавців
+    current_set = set(all_performers.keys())
+    
+    # Отримуємо вибрані евристики, відсортовані за пріоритетом
+    cursor.execute("""
+        SELECT h.id, h.name, h.description, COUNT(*) as votes, AVG(hv.priority) as avg_priority
+        FROM heuristics h
+        JOIN heuristic_votes hv ON h.id = hv.heuristic_id
+        GROUP BY h.id, h.name, h.description
+        ORDER BY avg_priority
+    """)
+    selected_heuristics = cursor.fetchall()
+    
+    if not selected_heuristics:
+        return [], list(all_performers.values())  # Якщо евристики не вибрані, повертаємо всіх виконавців
+    
+    for h_id, h_name, h_desc, votes, avg_priority in selected_heuristics:
+        excluded = set()
+        
+        if h_name == "E1":
+            cursor.execute("""
+                SELECT p.id, p.name
+                FROM performers p
+                JOIN votes v ON p.id = v.choice3
+                GROUP BY p.id, p.name
+                HAVING COUNT(*) = 1
+            """)
+            excluded = {row[0] for row in cursor.fetchall()}
+        elif h_name == "E2":
+            cursor.execute("""
+                SELECT p.id, p.name
+                FROM performers p
+                JOIN votes v ON p.id = v.choice2
+                GROUP BY p.id, p.name
+                HAVING COUNT(*) = 1
+            """)
+            excluded = {row[0] for row in cursor.fetchall()}
+        elif h_name == "E3":
+            cursor.execute("""
+                SELECT p.id, p.name
+                FROM performers p
+                JOIN votes v ON p.id = v.choice1
+                GROUP BY p.id, p.name
+                HAVING COUNT(*) = 1
+            """)
+            excluded = {row[0] for row in cursor.fetchall()}
+        elif h_name == "E4":
+            cursor.execute("""
+                SELECT p.id, p.name
+                FROM performers p
+                JOIN votes v ON p.id = v.choice3
+                GROUP BY p.id, p.name
+                HAVING COUNT(*) = 2
+            """)
+            excluded = {row[0] for row in cursor.fetchall()}
+        elif h_name == "E5":
+            cursor.execute("""
+                SELECT p.id, p.name
+                FROM performers p
+                JOIN votes v1 ON p.id = v1.choice3
+                JOIN votes v2 ON p.id = v2.choice2
+                GROUP BY p.id, p.name
+                HAVING COUNT(DISTINCT CASE WHEN p.id = v1.choice3 THEN v1.id END) = 1
+                AND COUNT(DISTINCT CASE WHEN p.id = v2.choice2 THEN v2.id END) = 1
+            """)
+            excluded = {row[0] for row in cursor.fetchall()}
+        elif h_name == "E6":
+            cursor.execute("""
+                SELECT p.id, p.name
+                FROM performers p
+                LEFT JOIN votes v ON p.id IN (v.choice1, v.choice2, v.choice3)
+                LEFT JOIN votes v1 ON p.id = v1.choice1
+                GROUP BY p.id, p.name
+                HAVING COUNT(DISTINCT v.id) >= 3 AND COUNT(v1.id) = 0
+            """)
+            excluded = {row[0] for row in cursor.fetchall()}
+        elif h_name == "E7":
+            cursor.execute("""
+                SELECT p.id, p.name,
+                    COUNT(CASE WHEN v.choice1 = p.id THEN 1 END) * 3 +
+                    COUNT(CASE WHEN v.choice2 = p.id THEN 1 END) * 2 +
+                    COUNT(CASE WHEN v.choice3 = p.id THEN 1 END) * 1 as total_points
+                FROM performers p
+                LEFT JOIN votes v ON p.id IN (v.choice1, v.choice2, v.choice3)
+                GROUP BY p.id, p.name
+                HAVING total_points < 2
+            """)
+            excluded = {row[0] for row in cursor.fetchall()}
+        
+        excluded = excluded & current_set  # Виключаємо тільки з поточного набору
+        if excluded:
+            results.append((f"{h_name}: {h_desc}", [all_performers[pid] for pid in excluded]))
+            current_set = current_set - excluded
+    
+    return results, [all_performers[pid] for pid in current_set]
+
+def create_heuristics_plot(cursor):
+    """Створює графік популярності евристик"""
+    # Підрахунок використання кожної евристики
+    heuristics_data = [
+        ("E1: 1 раз на 3 місці", 0),
+        ("E2: 1 раз на 2 місці", 0),
+        ("E3: 1 раз на 1 місці", 0),
+        ("E4: 2 рази на 3 місці", 0),
+        ("E5: 1 раз на 3 і 1 раз на 2 місці", 0),
+        ("E6: 3+ голосувань, не на 1 місці", 0),
+        ("E7: Менше 2 балів", 0)
+    ]
+    
+    # Створюємо графік
+    fig = go.Figure(data=[
+        go.Bar(
+            x=[h[0] for h in heuristics_data],
+            y=[h[1] for h in heuristics_data],
+            text=[h[1] for h in heuristics_data],
+            textposition='auto',
+        )
+    ])
+    
+    fig.update_layout(
+        title='Популярність евристик',
+        xaxis_title='Евристики',
+        yaxis_title='Кількість використань',
+        template='plotly_white'
+    )
+    
+    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+@app.route('/', methods=['GET', 'POST'])
+def vote():
+    with sqlite3.connect("voting.db") as conn:
+        cursor = conn.cursor()
+        
+        if request.method == 'POST':
+            expert = request.form['expert']
+            choice1 = int(request.form['choice1'])
+            choice2 = int(request.form['choice2'])
+            choice3 = int(request.form['choice3'])
+            
+            # Перевірка на унікальність вибору
+            if len(set([choice1, choice2, choice3])) != 3:
+                return "Помилка: Ви не можете вибрати одного виконавця декілька разів", 400
+            
+            # Оновлюємо існуючий голос експерта
+            cursor.execute("""
+                INSERT OR REPLACE INTO votes (expert_id, choice1, choice2, choice3)
+                SELECT e.id, ?, ?, ?
+                FROM experts e
+                WHERE e.name = ?
+            """, (choice1, choice2, choice3, expert))
+            
+            conn.commit()
+            return redirect(url_for('results'))
+
+        # Отримуємо виконавців
+        cursor.execute("SELECT id, name FROM performers ORDER BY name")
+        performers = cursor.fetchall()
+
+        # Отримуємо експертів
+        cursor.execute("SELECT name FROM experts ORDER BY name")
+        experts = [row[0] for row in cursor.fetchall()]
+
+        # Отримуємо результати голосування
+        cursor.execute("""
+            SELECT e.name AS expert_name, 
+                   p1.name AS choice1_name, 
+                   p2.name AS choice2_name, 
+                   p3.name AS choice3_name
+            FROM votes v
+            JOIN experts e ON v.expert_id = e.id
+            JOIN performers p1 ON v.choice1 = p1.id
+            JOIN performers p2 ON v.choice2 = p2.id
+            JOIN performers p3 ON v.choice3 = p3.id
+            ORDER BY e.name
+        """)
+        votes = cursor.fetchall()
+
+        # Підрахунок результатів з ваговими коефіцієнтами
+        cursor.execute("""
+            SELECT 
+                p.name,
+                COUNT(CASE WHEN v.choice1 = p.id THEN 1 END) as first_places,
+                COUNT(CASE WHEN v.choice2 = p.id THEN 1 END) as second_places,
+                COUNT(CASE WHEN v.choice3 = p.id THEN 1 END) as third_places
+            FROM performers p
+            LEFT JOIN votes v ON p.id = v.choice1 OR p.id = v.choice2 OR p.id = v.choice3
+            GROUP BY p.id, p.name
+            ORDER BY 
+                first_places DESC,
+                second_places DESC,
+                third_places DESC,
+                p.name ASC
+        """)
+        total_results = cursor.fetchall()
+
+        return render_template('vote.html', 
+                            performers=performers, 
+                            experts=experts, 
+                            votes=votes, 
+                            total_results=total_results)
+
+
+@app.route('/add_expert', methods=['POST'])
+def add_expert():
+    with sqlite3.connect("voting.db") as conn:
+        cursor = conn.cursor()
+        expert_name = request.form['new_expert']
+        choice1 = request.form['choice1']
+        choice2 = request.form['choice2']
+        choice3 = request.form['choice3']
+        
+        # Додаємо нового експерта
+        cursor.execute("INSERT OR IGNORE INTO experts (name) VALUES (?)", (expert_name,))
+        
+        # Отримуємо ID нового експерта
+        cursor.execute("SELECT id FROM experts WHERE name = ?", (expert_name,))
+        expert_id = cursor.fetchone()[0]
+        
+        # Додаємо голоси нового експерта
+        cursor.execute("""
+            INSERT INTO votes (expert_id, choice1, choice2, choice3)
+            VALUES (?, ?, ?, ?)
+        """, (expert_id, choice1, choice2, choice3))
+        
+        conn.commit()
+        
+    return redirect(url_for('vote'))
+
+@app.route('/expert/<expert_name>', methods=['GET', 'POST'])
+def expert_vote(expert_name):
+    with sqlite3.connect("voting.db") as conn:
+        cursor = conn.cursor()
+        
+        if request.method == 'POST':
+            choice1 = request.form['choice1']
+            choice2 = request.form['choice2']
+            choice3 = request.form['choice3']
+            
+            # Додаємо експерта, якщо його ще немає
+            cursor.execute("""
+                INSERT OR IGNORE INTO experts (name)
+                VALUES (?)
+            """, (expert_name,))
+            
+            # Отримуємо ID експерта
+            cursor.execute("SELECT id FROM experts WHERE name = ?", (expert_name,))
+            expert_id = cursor.fetchone()[0]
+            
+            # Оновлюємо голос
+            cursor.execute("""
+                INSERT OR REPLACE INTO votes (expert_id, choice1, choice2, choice3)
+                VALUES (?, ?, ?, ?)
+            """, (expert_id, choice1, choice2, choice3))
+            
+            conn.commit()
+            return render_template('thank_you.html')
+
+        # Отримуємо список виконавців для форми
+        cursor.execute("SELECT id, name FROM performers")
+        performers = cursor.fetchall()
+        
+        # Перевіряємо, чи експерт вже голосував
+        cursor.execute("""
+            SELECT 1 FROM votes v
+            JOIN experts e ON v.expert_id = e.id
+            WHERE e.name = ?
+        """, (expert_name,))
+        already_voted = cursor.fetchone() is not None
+        
+        return render_template('expert_vote.html', 
+                             expert_name=expert_name,
+                             performers=performers,
+                             already_voted=already_voted)
+
+@app.route('/results')
+def results():
+    with sqlite3.connect("voting.db") as conn:
+        cursor = conn.cursor()
+        
+        # Отримуємо результати застосування евристик
+        filtering_results, winners = apply_heuristics(cursor)
+        
+        # Отримуємо статистику по евристикам
+        cursor.execute("""
+            SELECT h.name, h.description, 
+                   COUNT(hv.id) as votes,
+                   AVG(hv.priority) as avg_priority
+            FROM heuristics h
+            LEFT JOIN heuristic_votes hv ON h.id = hv.heuristic_id
+            GROUP BY h.id, h.name, h.description
+            ORDER BY votes DESC, avg_priority
+        """)
+        heuristics_ranking = [
+            {
+                'name': row[0],
+                'description': row[1],
+                'votes': row[2],
+                'avg_priority': row[3] or 0
+            }
+            for row in cursor.fetchall()
+        ]
+        
+        # Створюємо графік
+        plot_json = create_heuristics_plot(cursor)
+        
+        return render_template('results.html',
+                             filtering_results=filtering_results,
+                             winners=winners,
+                             heuristics_ranking=heuristics_ranking,
+                             plot_json=plot_json)
+
+@app.route('/vote_heuristics', methods=['GET', 'POST'])
+def vote_heuristics():
+    with sqlite3.connect("voting.db") as conn:
+        cursor = conn.cursor()
+        
+        if request.method == 'POST':
+            expert_name = request.form['expert']
+            heuristic1 = int(request.form['heuristic1'])
+            heuristic2 = int(request.form.get('heuristic2', 0))
+            heuristic3 = int(request.form.get('heuristic3', 0))
+            
+            # Отримуємо ID експерта
+            cursor.execute("SELECT id FROM experts WHERE name = ?", (expert_name,))
+            expert_id = cursor.fetchone()[0]
+            
+            # Видаляємо попередні голоси експерта
+            cursor.execute("DELETE FROM heuristic_votes WHERE expert_id = ?", (expert_id,))
+            
+            # Додаємо нові голоси
+            if heuristic1:
+                cursor.execute("""
+                    INSERT INTO heuristic_votes (expert_id, heuristic_id, priority)
+                    VALUES (?, ?, 1)
+                """, (expert_id, heuristic1))
+            if heuristic2:
+                cursor.execute("""
+                    INSERT INTO heuristic_votes (expert_id, heuristic_id, priority)
+                    VALUES (?, ?, 2)
+                """, (expert_id, heuristic2))
+            if heuristic3:
+                cursor.execute("""
+                    INSERT INTO heuristic_votes (expert_id, heuristic_id, priority)
+                    VALUES (?, ?, 3)
+                """, (expert_id, heuristic3))
+            
+            conn.commit()
+            return redirect(url_for('results'))
+        
+        # Отримуємо список евристик
+        cursor.execute("SELECT id, name, description FROM heuristics ORDER BY id")
+        heuristics = cursor.fetchall()
+        
+        # Отримуємо список експертів
+        cursor.execute("SELECT name FROM experts ORDER BY name")
+        experts = [row[0] for row in cursor.fetchall()]
+        
+        return render_template('vote_heuristics.html',
+                             heuristics=heuristics,
+                             experts=experts)
+
+def seed_heuristics():
+    with sqlite3.connect("voting.db") as conn:
+        cursor = conn.cursor()
+        heuristics = [
+            ("E1", "Об'єкт 1 раз був на 3 місці"),
+            ("E2", "Об'єкт 1 раз був на 2 місці"),
+            ("E3", "Об'єкт 1 раз був на 1 місці"),
+            ("E4", "Об'єкт 2 рази на 3 місці"),
+            ("E5", "1 раз на 3 і 1 раз на 2 місці"),
+            ("E6", "Був у 3+ голосуваннях, але ніколи на 1 місці"),
+            ("E7", "Має менше 2 балів загалом")
+        ]
+        cursor.execute("DELETE FROM heuristics")  # Очищаємо таблицю перед додаванням
+        for name, description in heuristics:
+            cursor.execute("""
+                INSERT OR IGNORE INTO heuristics (name, description)
+                VALUES (?, ?)
+            """, (name, description))
+        conn.commit()
+
+if __name__ == '__main__':
+    init_db()
+    seed_data()
+    seed_heuristics()
+    clean_duplicates()
+    generate_random_votes()
+    # Змінюємо на звичайний запуск без debug режиму
+    app.run()

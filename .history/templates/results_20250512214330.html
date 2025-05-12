@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Результати фільтрації</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1, h2 {
+            color: #333;
+        }
+
+        .filtering-results {
+            margin: 20px 0;
+        }
+
+        .heuristic-block {
+            background-color: #f5f5f5;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .winners {
+            background-color: #e8f5e9;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .winners h2 {
+            color: #2e7d32;
+        }
+
+        .plot-container {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #f5f5f5;
+        }
+
+        .back-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+
+        .back-button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>Результати фільтрації об'єктів</h1>
+
+    <div class="filtering-results">
+        <h2>Процес фільтрації за евристиками</h2>
+        {% for heuristic, excluded in filtering_results %}
+        <div class="heuristic-block">
+            <h3>{{ heuristic }}</h3>
+            {% if excluded %}
+            <p>Виключені об'єкти:</p>
+            <ul>
+                {% for obj in excluded %}
+                <li>{{ obj }}</li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p>Жодних об'єктів не було виключено на цьому етапі.</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="winners">
+        <h2>Фінальний список переможців</h2>
+        {% if winners %}
+        <ol>
+            {% for winner in winners %}
+            <li>{{ winner }}</li>
+            {% endfor %}
+        </ol>
+        {% else %}
+        <p>Немає переможців, що відповідають всім критеріям.</p>
+        {% endif %}
+    </div>
+
+    <div class="plot-container">
+        <h2>Графік популярності евристик</h2>
+        <div id="heuristics-plot"></div>
+    </div>
+
+    <a href="{{ url_for('vote') }}" class="back-button">Повернутися до голосування</a>
+
+    <script>
+        var graphs = {{ plot_json | safe }};
+        Plotly.newPlot('heuristics-plot', graphs.data, graphs.layout);
+    </script>
+</body>
+</html>

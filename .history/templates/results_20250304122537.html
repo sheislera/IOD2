@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Результати голосування</title>
+</head>
+<body>
+    <h1>Результати голосування</h1>
+    <table border="1">
+        <tr>
+            <th>Виконавець</th>
+            <th>Кількість голосів</th>
+        </tr>
+        {% for result in results %}
+        <tr>
+            <td>{{ result[0] }}</td>
+            <td>{{ result[1] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    <a href="{{ url_for('vote') }}">Назад до голосування</a>
+</body>
+</html>

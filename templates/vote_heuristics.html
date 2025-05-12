@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Голосування за евристики</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .voting-form {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h1, h2 {
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .heuristic-description {
+            font-style: italic;
+            color: #666;
+            margin-bottom: 10px;
+        }
+    </style>
+    <script>
+        function updateOptions() {
+            const selects = ['heuristic1', 'heuristic2', 'heuristic3'];
+            const selectedValues = selects.map(id => document.getElementById(id).value);
+            
+            selects.forEach((selectId, idx) => {
+                const select = document.getElementById(selectId);
+                const options = select.options;
+                
+                for (let i = 0; i < options.length; i++) {
+                    options[i].disabled = false;
+                    if (options[i].value !== '') {
+                        selectedValues.forEach((val, valIdx) => {
+                            if (idx !== valIdx && options[i].value === val) {
+                                options[i].disabled = true;
+                            }
+                        });
+                    }
+                }
+            });
+        }
+    </script>
+</head>
+<body>
+    <div class="voting-form">
+        <h1>Голосування за евристики</h1>
+        <p>Виберіть 1-3 евристики, які слід застосувати в першу чергу для відсіювання найменш значимих об'єктів</p>
+        
+        <form method="post">
+            <div class="form-group">
+                <label for="expert">Виберіть своє ім'я:</label>
+                <select name="expert" id="expert" required>
+                    {% for expert in experts %}
+                        <option value="{{ expert }}">{{ expert }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="heuristic1">Перша евристика (обов'язково):</label>
+                <select name="heuristic1" id="heuristic1" required onchange="updateOptions()">
+                    <option value="">Виберіть евристику</option>
+                    {% for h in heuristics %}
+                        <option value="{{ h[0] }}">{{ h[1] }} - {{ h[2] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="heuristic2">Друга евристика (необов'язково):</label>
+                <select name="heuristic2" id="heuristic2" onchange="updateOptions()">
+                    <option value="">Виберіть евристику</option>
+                    {% for h in heuristics %}
+                        <option value="{{ h[0] }}">{{ h[1] }} - {{ h[2] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="heuristic3">Третя евристика (необов'язково):</label>
+                <select name="heuristic3" id="heuristic3" onchange="updateOptions()">
+                    <option value="">Виберіть евристику</option>
+                    {% for h in heuristics %}
+                        <option value="{{ h[0] }}">{{ h[1] }} - {{ h[2] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="submit">Проголосувати</button>
+        </form>
+    </div>
+</body>
+</html> 
